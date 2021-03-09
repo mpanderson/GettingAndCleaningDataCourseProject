@@ -1,0 +1,138 @@
+---
+title: "README"
+author: "Mike Anderson"
+date: "3/9/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## UCI HAR Dataset Cleaning and Processing  Script Details
+
+Data: These data were collected from 30 participants wearing galaxy s mobile phone while performing 6 activities.  Measures of accelaration and gyroscope position were recorded, processed and normalized prior to this cleaning and prcessing.  For more information on these data please see <http://archive.ics.uci.edu/ml/datasets/Human+Activity+Recognition+Using+Smartphones>.
+
+This block of code loads the necessary libraries, creates a directory "data" in the current working directory and downloads the .zip file.  The final unzip() function only lists the files with in the .zip file with out unzipping becaue of the "list=T" option.
+
+```{r, eval=F}
+#load necessary libraries
+library(dplyr)
+library(RCurl)
+library(stringr)
+
+#create directory to store the data
+if(!file.exists("./data")){dir.create("./data")}
+fileUrl<-"https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip"
+
+#Download data: files takes a few minutes to download
+download.file(fileUrl,destfile=".\\data\\phone.zip",method="curl")
+
+#list files without unzipping
+unzip(".\\data\\phone.zip",list=T)
+```
+
+Extacting to the local folder can be done using this code and the working directory set to read in from the extacted "CDI HAR Dataset folder"
+
+```{r, eval=F}
+#unzip files extracting to the "data" folder
+unzip(".\\data\\phone.zip",exdir=".\\data",list=F)
+
+```
+
+Read in the .txt file data and name the columns of each data set.
+```{r, eval=F}
+#read in data and created column labels
+subject_test <- read.table("test/subject_test.txt", col.names = "subject")
+subject_train <- read.table("train/subject_train.txt",col.names= "subject")
+features <- read.table("features.txt",col.names = c("n","signal"))
+activity_labels <- read.table("activity_labels.txt",col.names = c("label", "activity"))
+x_test <- read.table("test/X_test.txt",col.names = features$signal)
+x_train <- read.table("train/x_train.txt",col.names= features$signal)
+y_test <- read.table("test/y_test.txt",col.names = "label")
+y_train <- read.table("train/y_train.txt",col.names="label")
+```
+
+The Inertial Signals data provide 128 elements that are unamed/described from the UCI source so these data are not considered in this codebook
+
+
+### Processing Data Steps
+Here we combine the subject identifiers, the activies performed and the outcome measures into 1. a single file for each test and training data set and 2. in to a single combined file the merges the test and training data sets with the subject and activity identifiers.  We also investigate the stucture of each variable and each varaible name in preparation for precessing
+```{r, eval=F}
+
+#Merge the training and test data
+test.dat <- cbind(subject_test,y_test,x_test)
+train.dat <- cbind(subject_train,y_train,x_train)
+comb <- rbind(test.dat,train.dat)
+
+#look at the names 
+str(comb)
+names(comb)
+```
+
+### Removing varibles
+Here we keep only the variables with subject ids, the activity labels, and variables with the terms Mean or Standard Deviation as indicated by 'mean' or 'std' in the name.
+
+
+```{r,eval=F}
+
+#select only those with mean and std in the title
+comb.mean.std<-comb[,which(str_count(names(comb),"mean|std|subject|label")==1)]
+```
+
+Variable structure will remain the same but varaible names will be modified to be more informative.  
+
+In the fowllowing code, we change the activity number (first column of activity_labels) for the the more descriptive activity label.
+
+```{r, eval=F}
+activity_labels
+#Add descriptive activity label rather than number
+comb.mean.std$label<-activity_labels[comb.mean.std$label,2]
+```
+
+
+Finally we relabel the variables to be more informative if they are a "Time" or "Frequency" veraible from the "Accelrometer" or "Gyroscope measure."  The set of code makes use of metacharacters and the gsub() function ot serach and substitute specific values in the variable names.
+```{r, eval=F}
+
+#use metacharacters to give more appropirate names to variables
+names(comb.mean.std)<-gsub("label","Activity",names(comb.mean.std))
+names(comb.mean.std)<-gsub("^t","Time ",names(comb.mean.std))
+names(comb.mean.std)<-gsub("^f","Frequency ",names(comb.mean.std))
+names(comb.mean.std)<-gsub("Acc"," Acceleration ",names(comb.mean.std))
+names(comb.mean.std)<-gsub("Gyro"," Gyroscope ",names(comb.mean.std))
+names(comb.mean.std)<-gsub(".mean...","Mean ",names(comb.mean.std))
+names(comb.mean.std)<-gsub(".std...","Standard Deviation ",names(comb.mean.std))
+names(comb.mean.std)<-gsub("Jerk","Jerk ",names(comb.mean.std))
+names(comb.mean.std)<-gsub("Mag","Magnitude ",names(comb.mean.std))
+names(comb.mean.std)<-gsub("BodyBody","Body",names(comb.mean.std))
+names(comb.mean.std)<-gsub(".mean..","Mean",names(comb.mean.std))
+names(comb.mean.std)<-gsub(".std..","Standard Deviation",names(comb.mean.std))
+ 
+```
+
+### Create additional data set 
+This data set consists of the means of each variable by subject and activity.  These data use the group_by() function to first group by subject and then Activity.  We then emply the summarize_all() function to obtian the mean for all of the remaiing variables.
+
+```{r,eval=F}
+#Create additiona data set that is the mean of each varaible by subject by activity
+add.tidy.data<-comb.mean.std %>% group_by(subject,Activity) %>% summarize_all(mean)
+```
+
+### Final Code Books
+A code book of each of the final data sets and renamed varialbes can be obtained using the code below.
+
+#### Final data set
+This prints the structure of the combined final data data set so that the user can see the name and type of each variable and examples of the variable values along with the dimension of the data.frame.
+
+```{r,eval=F}
+#have a look at the structs of each created data set 
+str(comb.mean.std)
+
+```
+
+#### Final data set with means by subject and activity
+```{r, eval=F}
+str(add.tidy.data)
+
+```
+
